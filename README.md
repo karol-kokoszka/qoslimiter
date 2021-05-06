@@ -4,6 +4,8 @@ QoSListener allows to create quality-of-service over any existing net.Listener.
 The main purpose of this library is to rate limit TCP bandwidth on the listener level and on the single connection level as well.
 **SLA** for 30s transfer sample consumed bandwidth should be accurate +/- 5%
 
+Implementation is backed with [token bucket algorithm](https://en.wikipedia.org/wiki/Token_bucket) provided in [pkg.go.dev/golang.org/x/time/rate](https://pkg.go.dev/golang.org/x/time/rate#section-documentation). One token reflects one byte of bandwidth.
+
 Example usage:
 ```
 func myLimitedListener(l net.Listener, limitGlobal, limitPerConn int) net.Listener {

@@ -14,3 +14,10 @@ func myLimitedListener(l net.Listener, limitGlobal, limitPerConn int) net.Listen
 
 - **limitGlobal** parameter defines bytes/sec available for the whole listener
 - **limitPerConn** parameter defines bytes/sec available for a single connection handled by the listener.
+
+---
+**Makefile** targets:
+- **deps** - to get dependencies
+- **test** - to execute tests
+
+Tests for the library are long-running ones and a single test cases takes 30s to complete. 

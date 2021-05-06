@@ -28,7 +28,7 @@ func startConsumer(addr string, noConnections int) {
 			panic(err)
 		}
 		go func() {
-			// consumes whole data from the connection in 64kB portions
+			// consumes whole data from the connection in 512kB portions
 			var connErr error
 			buffer := make([]byte, 512*kilobyte)
 			for connErr != io.EOF {

@@ -212,8 +212,8 @@ func TestQoSListener_Accept_MeasureConsumer(t *testing.T) {
 			listenerBandwidth: megabyte,
 			expectedBandwidth: megabyte,
 			dataSize:          8 * kilobyte,
-			description: `[30sec long] bandwidth should be equal to +/- 5% 50MB/sec when connBandwidth=20MB, listenerBandwidth=50MB,
-		numberOfConnections=20`,
+			description: `[30sec long] bandwidth should be equal to +/- 5% 1MB/sec when connBandwidth=16kB, listenerBandwidth=1MB,
+		numberOfConnections=100`,
 		},
 		{
 			measurementPeriod: 30 * time.Second,
@@ -222,8 +222,18 @@ func TestQoSListener_Accept_MeasureConsumer(t *testing.T) {
 			listenerBandwidth: 2 * megabyte,
 			expectedBandwidth: 2 * megabyte,
 			dataSize:          128 * kilobyte,
-			description: `[30sec long] bandwidth should be equal to +/- 5% 512kB/sec when connBandwidth=8kB, listenerBandwidth=128kB,
-		numberOfConnections=1000`,
+			description: `[30sec long] bandwidth should be equal to +/- 5% 2MB/sec when connBandwidth=INF, listenerBandwidth=2MB,
+		numberOfConnections=2`,
+		},
+		{
+			measurementPeriod: 30 * time.Second,
+			noConn:            100,
+			connBandwidth:     0,
+			listenerBandwidth: 2 * megabyte,
+			expectedBandwidth: 0,
+			dataSize:          128 * kilobyte,
+			description: `[30sec long] block the traffic when connBandwidth=0, listenerBandwidth=2MB,
+		numberOfConnections=100`,
 		},
 	}
 
@@ -277,7 +287,7 @@ func TestQoSListener_Accept_MeasureConsumer(t *testing.T) {
 
 			fmt.Println(tc.description)
 			fmt.Println((read/kilobyte)/30, " kB/sec")
-			assert.True(t, math.Abs(tc.expectedBandwidth-realBw) < tolerance,
+			assert.True(t, math.Abs(tc.expectedBandwidth-realBw) <= tolerance,
 				fmt.Sprintf("Expected %f +/- %f, but was %f", tc.expectedBandwidth, tolerance, realBw))
 		})
 	}

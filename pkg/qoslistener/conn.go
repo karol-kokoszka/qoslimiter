@@ -92,11 +92,17 @@ func (c *qosconn) findBufferSize(connectionLimiter, globalLimiter *rate.Limiter,
 	bufferSize := initial
 	// get full burst per connection
 	connectionLimiterFraction := connectionLimiter.Burst()
+	if connectionLimiter.Limit() != rate.Inf && connectionLimiter.Burst() == 0 {
+		return 0
+	}
 	if connectionLimiter.Limit() != rate.Inf && bufferSize > connectionLimiter.Burst() {
 		bufferSize = connectionLimiterFraction
 	}
 	// allow to get maximum 1/1000 of listener bandwidth per single read/write request
 	globalLimiterFraction := globalLimiter.Burst() / 1000
+	if globalLimiter.Limit() != rate.Inf && globalLimiter.Burst() == 0 {
+		return 0
+	}
 	if globalLimiter.Limit() != rate.Inf && bufferSize > globalLimiterFraction {
 		bufferSize = globalLimiterFraction
 	}

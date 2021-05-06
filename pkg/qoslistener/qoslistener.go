@@ -58,7 +58,7 @@ func (l *QoSListener) Addr() net.Addr {
 	return l.watchedListener.Addr()
 }
 
-// SetLimits method is exposed to allow setting and changing bandwidth limits in runtime.
+// SetLimits method is exposed to allow setting and changing bandwidth limits at runtime.
 // It creates new listener-limiter and saves values of connection-bytes-per-second that is shared
 // between all connections.
 func (l *QoSListener) SetLimits(globalBps, connectionBps int) {

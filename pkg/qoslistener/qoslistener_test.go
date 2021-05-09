@@ -82,6 +82,8 @@ func generateXSizeLongBytesData(size int) []byte {
 
 func TestQoSListener_Accept_MeasureProducer(t *testing.T) {
 
+	t.Parallel()
+
 	type TestCase struct {
 		measurementPeriod time.Duration
 		noConn            int
@@ -183,6 +185,8 @@ func TestQoSListener_Accept_MeasureProducer(t *testing.T) {
 }
 
 func TestQoSListener_Accept_MeasureConsumer(t *testing.T) {
+
+	t.Parallel()
 
 	type TestCase struct {
 		measurementPeriod time.Duration
@@ -288,6 +292,111 @@ func TestQoSListener_Accept_MeasureConsumer(t *testing.T) {
 			fmt.Println(tc.description)
 			fmt.Println((read/kilobyte)/30, " kB/sec")
 			assert.True(t, math.Abs(tc.expectedBandwidth-realBw) <= tolerance,
+				fmt.Sprintf("Expected %f +/- %f, but was %f", tc.expectedBandwidth, tolerance, realBw))
+		})
+	}
+
+}
+
+func TestQoSListener_Accept_ChangeLimitsAtRuntime(t *testing.T) {
+
+	t.Parallel()
+
+	type Step struct {
+		measurementPeriod time.Duration
+		connBandwidth     int
+		listenerBandwidth int
+	}
+
+	type TestCase struct {
+		noConn            int
+		steps             []*Step
+		expectedBandwidth float64
+		dataSize          int
+		description       string
+	}
+
+	tcs := []*TestCase{
+		{
+			noConn:            20,
+			expectedBandwidth: 20 * megabyte,
+			dataSize:          32 * kilobyte,
+			steps: []*Step{
+				{
+					measurementPeriod: 30 * time.Second,
+					connBandwidth:     megabyte,
+					listenerBandwidth: 50 * megabyte,
+				},
+				{
+					measurementPeriod: 30 * time.Second,
+					connBandwidth:     0,
+					listenerBandwidth: 0,
+				},
+				{
+					measurementPeriod: 30 * time.Second,
+					connBandwidth:     2 * megabyte,
+					listenerBandwidth: 50 * megabyte,
+				},
+			},
+			description: `[90sec long] bandwidth should be equal to +/- 5% 20MB/sec with 3 30sec periods 20MB/sec, 0MB/sec, 40MB/sec`,
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.description, func(t *testing.T) {
+			data := generateXSizeLongBytesData(tc.dataSize)
+
+			rawListener, err := net.Listen("tcp4", ":0")
+			require.NoError(t, err)
+			qosListener := NewListener(rawListener)
+			qosListener.SetLimits(tc.steps[0].listenerBandwidth, tc.steps[0].connBandwidth)
+
+			go startConsumer(qosListener.Addr().String(), tc.noConn)
+			written := uint64(0)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			go func(ctx context.Context) {
+				defer qosListener.Close()
+
+				done := false
+				go func() {
+					<-ctx.Done()
+					done = true
+				}()
+				for !done {
+					conn, err := qosListener.Accept()
+					if err != nil {
+						panic(err)
+					}
+					go func() {
+						defer conn.Close()
+
+						for !done {
+							n, err := conn.Write(data)
+							if err != nil {
+								panic(err)
+							}
+							atomic.AddUint64(&written, uint64(n))
+						}
+					}()
+				}
+			}(ctx)
+			// when
+			executionTime := tc.steps[0].measurementPeriod.Seconds()
+			time.Sleep(tc.steps[0].measurementPeriod)
+			for i := 1; i < len(tc.steps); i++ {
+				qosListener.SetLimits(tc.steps[i].listenerBandwidth, tc.steps[i].connBandwidth)
+				executionTime += tc.steps[i].measurementPeriod.Seconds()
+				time.Sleep(tc.steps[i].measurementPeriod)
+			}
+			// then
+			cancel()
+			realBw := float64(written) / executionTime
+			tolerance := 0.05 * tc.expectedBandwidth
+
+			fmt.Println(tc.description)
+			fmt.Println((written/kilobyte)/uint64(executionTime), " kB/sec")
+			assert.True(t, math.Abs(tc.expectedBandwidth-realBw) < tolerance,
 				fmt.Sprintf("Expected %f +/- %f, but was %f", tc.expectedBandwidth, tolerance, realBw))
 		})
 	}

@@ -2,12 +2,12 @@ package qoslistener
 
 import (
 	"context"
-	"golang.org/x/time/rate"
 	"io"
-	"math"
 	"net"
 	"sync/atomic"
 	"time"
+
+	"golang.org/x/time/rate"
 )
 
 type operation int
@@ -42,18 +42,13 @@ func newConn(conn net.Conn, parent *QoSListener, pcBandwidth int32) *qosconn {
 		watchedConn: conn,
 		parent:      parent,
 		pcBandwidth: pcBandwidth,
-		pcLimiter:   createNewRateLimiter(pcBandwidth),
+		pcLimiter:   rate.NewLimiter(findLimit(int(pcBandwidth)), findBurst(int(pcBandwidth))),
 	}
 }
 
-func createNewRateLimiter(bandwidth int32) *rate.Limiter {
-	var limiter *rate.Limiter
-	if bandwidth <= AllowAllTraffic {
-		limiter = rate.NewLimiter(rate.Limit(math.MaxFloat64), 0)
-	} else {
-		limiter = rate.NewLimiter(rate.Limit(bandwidth), int(bandwidth))
-	}
-	return limiter
+func (c *qosconn) updateRateLimiter(bandwidth int32) {
+	c.pcLimiter.SetLimit(findLimit(int(bandwidth)))
+	c.pcLimiter.SetBurst(findBurst(int(bandwidth)))
 }
 
 func (c *qosconn) Read(b []byte) (int, error) {
@@ -90,16 +85,17 @@ func (c *qosconn) SetWriteDeadline(t time.Time) error {
 
 func (c *qosconn) findBufferSize(connectionLimiter, globalLimiter *rate.Limiter, initial int) int {
 	bufferSize := initial
-	// get full burst per connection
-	connectionLimiterFraction := connectionLimiter.Burst()
+	// allow to get maximum 1/10000 of connection bandwidth per single read/write request
+	// to react quicker on bandwidth change when writing / reading big amount of data
+	connectionLimiterFraction := connectionLimiter.Burst() / 10000
 	if connectionLimiter.Limit() != rate.Inf && connectionLimiter.Burst() == 0 {
 		return 0
 	}
 	if connectionLimiter.Limit() != rate.Inf && bufferSize > connectionLimiter.Burst() {
 		bufferSize = connectionLimiterFraction
 	}
-	// allow to get maximum 1/1000 of listener bandwidth per single read/write request
-	globalLimiterFraction := globalLimiter.Burst() / 1000
+	// allow to get maximum 1/10000 of listener bandwidth per single read/write request
+	globalLimiterFraction := globalLimiter.Burst() / 10000
 	if globalLimiter.Limit() != rate.Inf && globalLimiter.Burst() == 0 {
 		return 0
 	}
@@ -120,7 +116,7 @@ func (c *qosconn) rateLimitOperation(b []byte, op operation) (int, error) {
 		parentBandwidth := atomic.LoadInt32(&c.parent.pcBandwidth)
 		if parentBandwidth != c.pcBandwidth {
 			c.pcBandwidth = parentBandwidth
-			c.pcLimiter = createNewRateLimiter(c.pcBandwidth)
+			c.updateRateLimiter(c.pcBandwidth)
 		}
 		gl := (*rate.Limiter)(atomic.LoadPointer(&c.parent.globalLimiter))
 

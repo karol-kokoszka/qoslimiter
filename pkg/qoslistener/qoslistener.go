@@ -62,12 +62,7 @@ func (l *QoSListener) Addr() net.Addr {
 // It creates new listener-limiter and saves values of connection-bytes-per-second that is shared
 // between all connections.
 func (l *QoSListener) SetLimits(globalBps, connectionBps int) {
-	var newGlobalLimiter *rate.Limiter
-	if globalBps <= AllowAllTraffic {
-		newGlobalLimiter = rate.NewLimiter(rate.Limit(math.MaxFloat64), 0)
-	} else {
-		newGlobalLimiter = rate.NewLimiter(rate.Limit(globalBps), globalBps)
-	}
+	newGlobalLimiter := rate.NewLimiter(findLimit(globalBps), findBurst(globalBps))
 	atomic.StorePointer(&l.globalLimiter, unsafe.Pointer(newGlobalLimiter))
 	atomic.StoreInt32(&l.pcBandwidth, int32(connectionBps))
 }

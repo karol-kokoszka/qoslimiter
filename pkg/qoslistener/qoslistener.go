@@ -3,8 +3,8 @@ package qoslistener
 import (
 	"math"
 	"net"
+	"sync"
 	"sync/atomic"
-	"unsafe"
 
 	"golang.org/x/time/rate"
 )
@@ -30,14 +30,15 @@ const (
 //    }
 type QoSListener struct {
 	watchedListener net.Listener
-	globalLimiter   unsafe.Pointer
+	globalLimiter   *rate.Limiter
 	pcBandwidth     int32
+	rwMutex         sync.RWMutex
 }
 
 func NewListener(listener net.Listener) *QoSListener {
 	return &QoSListener{
 		watchedListener: listener,
-		globalLimiter:   unsafe.Pointer(rate.NewLimiter(rate.Limit(math.MaxFloat64), 0)),
+		globalLimiter:   rate.NewLimiter(rate.Limit(math.MaxFloat64), 0),
 		pcBandwidth:     int32(AllowAllTraffic),
 	}
 }
@@ -58,11 +59,21 @@ func (l *QoSListener) Addr() net.Addr {
 	return l.watchedListener.Addr()
 }
 
+func (l *QoSListener) lockLim() {
+	l.rwMutex.Lock()
+}
+
+func (l *QoSListener) unlockLim() {
+	l.rwMutex.Unlock()
+}
+
 // SetLimits method is exposed to allow setting and changing bandwidth limits at runtime.
 // It creates new listener-limiter and saves values of connection-bytes-per-second that is shared
 // between all connections.
 func (l *QoSListener) SetLimits(globalBps, connectionBps int) {
-	newGlobalLimiter := rate.NewLimiter(findLimit(globalBps), findBurst(globalBps))
-	atomic.StorePointer(&l.globalLimiter, unsafe.Pointer(newGlobalLimiter))
+	l.rwMutex.Lock()
+	l.globalLimiter.SetBurst(findBurst(globalBps))
+	l.globalLimiter.SetLimit(findLimit(globalBps))
+	l.rwMutex.Unlock()
 	atomic.StoreInt32(&l.pcBandwidth, int32(connectionBps))
 }

@@ -22,5 +22,7 @@ func myLimitedListener(l net.Listener, limitGlobal, limitPerConn int) net.Listen
 **Makefile** targets:
 - **deps** - to get dependencies
 - **test** - to execute tests
+- **docker-build** - to build docker image used for executing tests
+- **docker-test** - to execute tests in separate environment (please use this goal for executing tests and veryfing solution)
 
 Tests for the library are long-running ones and a single test cases takes 30s to complete. 

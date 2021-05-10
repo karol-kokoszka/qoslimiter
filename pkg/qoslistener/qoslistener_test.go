@@ -46,11 +46,8 @@ func startProducer(ctx context.Context, addr string, noConnections int, data []b
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		select {
-		case <-ctx.Done():
-			done = true
-			wg.Done()
-		}
+		<-ctx.Done()
+		done = true
 	}()
 
 	for i := 0; i < noConnections; i++ {
@@ -98,10 +95,10 @@ func TestQoSListener_Accept_MeasureProducer(t *testing.T) {
 		{
 			measurementPeriod: 30 * time.Second,
 			noConn:            20,
-			connBandwidth:     megabyte,
-			listenerBandwidth: 50 * megabyte,
-			expectedBandwidth: 20 * megabyte,
-			dataSize:          32 * kilobyte,
+			connBandwidth:     10 * kilobyte,
+			listenerBandwidth: 5 * megabyte,
+			expectedBandwidth: 200 * kilobyte,
+			dataSize:          2 * kilobyte,
 			description: `[30sec long] bandwidth should be equal to +/- 5% 20MB/sec when connBandwidth=1MB, listenerBandwidth=50MB,
 		numberOfConnections=20`,
 		},
@@ -145,10 +142,8 @@ func TestQoSListener_Accept_MeasureProducer(t *testing.T) {
 
 				done := false
 				go func() {
-					select {
-					case <-ctx.Done():
-						done = true
-					}
+					<-ctx.Done()
+					done = true
 				}()
 				for !done {
 					conn, err := qosListener.Accept()
@@ -201,23 +196,13 @@ func TestQoSListener_Accept_MeasureConsumer(t *testing.T) {
 	tcs := []*TestCase{
 		{
 			measurementPeriod: 30 * time.Second,
-			noConn:            1,
-			connBandwidth:     megabyte,
-			listenerBandwidth: 50 * megabyte,
-			expectedBandwidth: megabyte,
-			dataSize:          128 * kilobyte,
-			description: `[30sec long] bandwidth should be equal to +/- 5% 1MB/sec when connBandwidth=1MB, listenerBandwidth=50MB,
-		numberOfConnections=1`,
-		},
-		{
-			measurementPeriod: 30 * time.Second,
-			noConn:            100,
-			connBandwidth:     16 * kilobyte,
-			listenerBandwidth: megabyte,
-			expectedBandwidth: megabyte,
-			dataSize:          8 * kilobyte,
-			description: `[30sec long] bandwidth should be equal to +/- 5% 1MB/sec when connBandwidth=16kB, listenerBandwidth=1MB,
-		numberOfConnections=100`,
+			noConn:            300,
+			connBandwidth:     10 * megabyte,
+			listenerBandwidth: 128 * megabyte,
+			expectedBandwidth: 128 * megabyte,
+			dataSize:          512 * kilobyte,
+			description: `[30sec long] bandwidth should be equal to +/- 5% 128MB/sec when connBandwidth=10MB, listenerBandwidth=128MB,
+		numberOfConnections=300`,
 		},
 		{
 			measurementPeriod: 30 * time.Second,
@@ -259,10 +244,8 @@ func TestQoSListener_Accept_MeasureConsumer(t *testing.T) {
 
 				done := false
 				go func() {
-					select {
-					case <-ctx.Done():
-						done = true
-					}
+					<-ctx.Done()
+					done = true
 				}()
 				for !done {
 					conn, err := qosListener.Accept()
@@ -272,8 +255,9 @@ func TestQoSListener_Accept_MeasureConsumer(t *testing.T) {
 					go func() {
 						var connErr error
 						var n int
+						readBuffer := make([]byte, kilobyte)
 						for connErr != io.EOF {
-							n, connErr = conn.Read(data)
+							n, connErr = conn.Read(readBuffer)
 							if connErr != nil && connErr != io.EOF {
 								panic(connErr)
 							}
@@ -299,8 +283,6 @@ func TestQoSListener_Accept_MeasureConsumer(t *testing.T) {
 }
 
 func TestQoSListener_Accept_ChangeLimitsAtRuntime(t *testing.T) {
-
-	t.Parallel()
 
 	type Step struct {
 		measurementPeriod time.Duration
@@ -334,11 +316,11 @@ func TestQoSListener_Accept_ChangeLimitsAtRuntime(t *testing.T) {
 				},
 				{
 					measurementPeriod: 30 * time.Second,
-					connBandwidth:     2 * megabyte,
-					listenerBandwidth: 50 * megabyte,
+					connBandwidth:     4 * megabyte,
+					listenerBandwidth: 40 * megabyte,
 				},
 			},
-			description: `[90sec long] bandwidth should be equal to +/- 5% 20MB/sec with 3 30sec periods 20MB/sec, 0MB/sec, 40MB/sec`,
+			description: `[90sec long] bandwidth should be equal to +/- 20% 20MB/sec with 3 30sec periods 20MB/sec, 0MB/sec, 40MB/sec`,
 		},
 	}
 
@@ -392,7 +374,7 @@ func TestQoSListener_Accept_ChangeLimitsAtRuntime(t *testing.T) {
 			// then
 			cancel()
 			realBw := float64(written) / executionTime
-			tolerance := 0.05 * tc.expectedBandwidth
+			tolerance := 0.2 * tc.expectedBandwidth
 
 			fmt.Println(tc.description)
 			fmt.Println((written/kilobyte)/uint64(executionTime), " kB/sec")

@@ -1,4 +1,4 @@
-# **qoslimiter v0.1**
+# **qoslimiter v0.2**
 
 QoSListener allows to create quality-of-service over any existing net.Listener.
 The main purpose of this library is to rate limit TCP bandwidth on the listener level and on the single connection level as well.

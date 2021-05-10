@@ -80,9 +80,6 @@ func (c *qosconn) findBufferSize(connectionLimiter, globalLimiter *rate.Limiter,
 	if bufferSize == 1 {
 		bufferSize = 64
 	}
-	if bufferSize == 0 {
-		bufferSize = 1
-	}
 	if initial < bufferSize {
 		bufferSize = initial
 	}

@@ -17,4 +17,4 @@ docker-build:
 	docker build -t qoslistener .
 
 docker-test: ### Run test inside docker
-	docker run --rm -it -e CGO_ENABLED=0 -v /Users/karolk/_dev/qoslimiter:/go/src/github.com/karol-kokoszka/qoslimiter -w /go/src/github.com/karol-kokoszka/qoslimiter qoslistener make test
+	docker run --rm -it -e CGO_ENABLED=0 -v $(CURDIR):/go/src/github.com/karol-kokoszka/qoslimiter -w /go/src/github.com/karol-kokoszka/qoslimiter qoslistener make test
